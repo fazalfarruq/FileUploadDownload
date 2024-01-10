@@ -1,4 +1,4 @@
-namespace FileUploadDownload
+namespace PdfJavascriptDetector
 {
     public class Program
     {

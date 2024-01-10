@@ -9,7 +9,7 @@
     }
   },
   "profiles": {
-    "FileUploadDownload": {
+    "PdfJavascriptDetector": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,

@@ -1,6 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using iText.Kernel.Pdf;
+using Microsoft.AspNetCore.Mvc;
+using System.IO;
 
-namespace FileUploadDownload.Controllers
+namespace PdfJavascriptDetector.Controllers
 {
     [ApiController]
     public class FilesController : ControllerBase
@@ -9,40 +11,85 @@ namespace FileUploadDownload.Controllers
         [Route("UploadFile")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> UploadFile(IFormFile file, CancellationToken cancellationToken)
+        public async Task<IActionResult> UploadFile(IFormFile? uploadedFile, CancellationToken cancellationToken)
         {
-           var result = await WriteFile(file);
-            return Ok(result);
+            bool isValid = false;
+            if (uploadedFile != null && uploadedFile.Length > 0)
+            {
+                using var memoryStream = new MemoryStream();
+                await uploadedFile.CopyToAsync(memoryStream, cancellationToken);
+                memoryStream.Position = 0;
+                isValid = await Validate(memoryStream);
+            }
+
+            if(isValid)
+                return Ok("File is clean!");
+            return BadRequest("Javascript detected!");
         }
 
-        private async Task<string> WriteFile(IFormFile file)
-        {
-            // Get file name
-            string fileName = "";
+        
 
+
+        private async Task<bool> Validate(MemoryStream stream)
+        {
+
+            var isValid = true;
             try
             {
-                var extension = "." + file.FileName.Split('.')[file.FileName.Split('.').Length - 1];
-                fileName = DateTime.Now.Ticks + extension; //Create a new Name for the file due to security reasons.
+                using PdfReader reader = new PdfReader(stream);
+                using PdfDocument pdfDoc = new PdfDocument(reader);
+                // Check for document-level JavaScript.
+                PdfDictionary catalog = pdfDoc.GetCatalog().GetPdfObject(); // get the root object (the whole catalog) of the document
+                PdfDictionary names = catalog.GetAsDictionary(PdfName.Names); // get the names dictionary at the root of the document
 
-                var filePath = Path.Combine(Directory.GetCurrentDirectory(), "Upload\\Files");
-
-                if (!Directory.Exists(filePath))
+                if (names != null)
                 {
-                    Directory.CreateDirectory(filePath);
+                    PdfDictionary js = names.GetAsDictionary(PdfName.JavaScript); // get the javascript dictionary from the names dictionary
+                    if (js != null)
+                    {
+                        isValid = false;
+                    }
                 }
 
-                var exactpath = Path.Combine(Directory.GetCurrentDirectory(), "Upload\\Files", fileName);
+                PdfDictionary java = catalog.GetAsDictionary(PdfName.JavaScript);
+                if (java != null)
+                {
 
-                await using var stream = new FileStream(exactpath, FileMode.Create);
-                await file.CopyToAsync(stream);
+                    isValid = false;
+
+                }
+
+                //check for forms
+                PdfDictionary acroForm = catalog.GetAsDictionary(PdfName.AcroForm);
+                if (acroForm != null)
+                {
+                    isValid = false;
+                }
+
+                // Check for Aditional Actions like buttons.
+                PdfDictionary aditionalActions = catalog.GetAsDictionary(PdfName.AA);
+
+                if (aditionalActions != null)
+                {
+                    isValid = false;
+                }
+
+                // Check for Actions like buttons.
+                PdfDictionary action = catalog.GetAsDictionary(PdfName.A);
+                if (action != null)
+                {
+                    isValid = false;
+
+                }
+
             }
             catch (Exception e)
             {
                 //TODO: handle exception
+                return false;
             }
 
-            return fileName;
+            return await Task.FromResult(isValid);
         }
 
     }
