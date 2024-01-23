@@ -1,0 +1,22 @@
+version: '3'
+services:
+  webapi:
+    build:
+      context: .
+      dockerfile: Dockerfile.A
+    ports:
+      - "8080:80"
+    depends_on:
+      - clamav
+    networks:
+      - your-network
+
+  clamav:
+    image: mkodockx/docker-clamav:alpine
+    expose:
+      - "3310"
+    networks:
+      - your-network
+
+networks:
+  your-network:
